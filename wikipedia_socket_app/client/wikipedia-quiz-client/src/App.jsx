@@ -18,6 +18,13 @@ function App() {
     }
   }
 
+  const clearLocalStorage = () => {
+    localStorage.removeItem("userId");
+    localStorage.removeItem("playerName");
+    localStorage.removeItem("roomNumber");
+    localStorage.removeItem("roomSocketConnected");
+  }
+
   const sendMessage = () => { 
     socket.emit("send_message", {message: message, room: room});
   }
@@ -39,7 +46,7 @@ function App() {
         <button>Host</button>
       </Link>
       <Link to={"/play"}>
-        <button>Join</button>
+        <button onClick={clearLocalStorage}>Join</button>
       </Link>
     </div>
 

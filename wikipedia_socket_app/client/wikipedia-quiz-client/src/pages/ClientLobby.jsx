@@ -91,7 +91,7 @@ function ClientRoomJoin({onLobbyJoin}) {
     }
 
     const handleRoomLeave = () => {
-        socket.emit("leave_room", roomNumber, (response) => {
+        socket.emit("leave_room", roomNumber, username, (response) => {
             if (response.status === "success") {
                 console.log(`Sucessfully left room: ${roomNumber}`);
                 setRoomJoined(false);
@@ -143,11 +143,12 @@ function ClientRoomJoin({onLobbyJoin}) {
 function ClientGameRoom({roomNumber}){
     const socket = useContext(SocketContext);
     const navigate = useNavigate();
+    const playerName = localStorage.getItem("playerName");
 
     const [playerList, setPlayerList] = useState([]);
 
     const handleLeaveRoom = () => {
-        socket.emit("leave_room", roomNumber, (response) => {
+        socket.emit("leave_room", roomNumber,  playerName, (response) => {
             if (response.status === "success") {
                 console.log(`Sucessfully left room: ${roomNumber}`);
             } else {

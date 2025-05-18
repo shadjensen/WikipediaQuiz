@@ -85,7 +85,7 @@ io.on("connection", (socket) => {
     //for when a socket wants to leave a room
     socket.on("leave_room", (roomNumber, playerName, callback) => {
         if (!rooms[roomNumber]) {
-            return callback({status: "error", message: "Room does not exist"});
+            return callback({status: "error"});
         }
         const room = rooms[roomNumber];
 
