@@ -1,7 +1,6 @@
 import React, {useState, useEffect, useContext} from 'react';
 import { Link , useNavigate} from "react-router-dom";
 import { SocketContext } from '../context/SocketContext.jsx';
-import { ClientRoom } from '../../../../../wikipediaquiz/src/ClientLobby.jsx';
 
 
 function ClientLobby() {
@@ -33,6 +32,7 @@ function ClientRoomJoin({onLobbyJoin}) {
     const [roomJoined, setRoomJoined] = useState(false);
     const [hasJoined, setHasJoined] = useState(false);
     const [username, setUsername] = useState('');
+    const [joinStatus, setJoinStatus] = useState("");
 
 
     const navigate = useNavigate();
@@ -68,6 +68,7 @@ function ClientRoomJoin({onLobbyJoin}) {
                     localStorage.setItem("roomSocketConnected", true);
                 } else {
                     console.log(`Failed to join room: ${inputNumber}`);
+                    setJoinStatus("That Room Number is invalid or full");
                 }
             });
 
@@ -144,8 +145,14 @@ function ClientGameRoom({roomNumber}){
     const socket = useContext(SocketContext);
     const navigate = useNavigate();
     const playerName = localStorage.getItem("playerName");
-
     const [playerList, setPlayerList] = useState([]);
+
+    socket.on("recieve_player_list", (players) => {
+        let playerNames = players.map(player => player.name);
+        console.log(`Recieved player list: ${JSON.stringify(players)}`);
+
+        setPlayerList(playerNames);
+    });
 
     const handleLeaveRoom = () => {
         socket.emit("leave_room", roomNumber,  playerName, (response) => {
@@ -163,14 +170,19 @@ function ClientGameRoom({roomNumber}){
         navigate('/');
     }
 
-    socket.on("update_player_list", (players) => {
-        setPlayerList(players);
-    });
+
 
 
     return (<>
         <h1>Welcome to the game room!</h1>
         <button onClick={handleLeaveRoom}>leave game room</button>
+
+        <p>Current Players</p>
+        <ul>
+            {playerList.map((player, index) => (
+                <li key={index}>{player}</li>
+            ))}
+        </ul>
     </>);
 }
 

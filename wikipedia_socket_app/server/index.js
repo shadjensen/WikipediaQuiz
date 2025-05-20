@@ -3,8 +3,7 @@ const app = express();
 const http = require("http");
 const { Server } = require("socket.io")
 const cors = require('cors');
-const Room = require('./models/Room.js');
-const Player = require('./models/Room.js');
+const {Room, Player} = require('./models/Room.js');
 const { cp } = require('fs');
 
 app.use(cors());
@@ -55,7 +54,8 @@ io.on("connection", (socket) => {
     socket.on("join_room", (roomNumber, callback) => {
         if (isValidRoom(roomNumber)) {
             if (!rooms[roomNumber]) {
-                rooms[roomNumber] = new Room(roomNumber);
+                console.log(`Room ${roomNumber} does not exist. ${userId} cannot join.`);
+                return callback({status: "error", message: "Room does not exist or full"});
             }
 
             socket.join(roomNumber);
@@ -69,14 +69,28 @@ io.on("connection", (socket) => {
 
     socket.on("player_join_room", (roomNumber, playerName, callback) => {
         if (rooms[roomNumber]) {
-            const room = rooms[roomNumber];
             const player = new Player(playerName);
-            room.addPlayer(player);
+            rooms[roomNumber].addPlayer(player);
+            const room = rooms[roomNumber];
 
             users[socket.userId].playerName = playerName;
             users[socket.userId].roomNumber = roomNumber;
             console.log(`User ${userId} joined room ${roomNumber} as ${playerName}`);
             callback({status: "success"});
+            console.log(`Sending player list as ${JSON.stringify(Object.values(room.players))}`);
+            io.to(roomNumber).emit("recieve_player_list", Object.values(room.players).map(player => 
+                ({name: player.name, 
+                score: player.score})
+            ));;
+        } else {
+            callback({status: "error", message: "Room does not exist"});
+        }
+    });
+
+    socket.on("get_player_list", (roomNumber, callback) => {
+        if (rooms[roomNumber]) {
+            const room = rooms[roomNumber];
+            callback({status: "success", playerList: Object.values(room.players).map(player => ({name: player.name, score: player.score}))});
         } else {
             callback({status: "error", message: "Room does not exist"});
         }
@@ -100,6 +114,10 @@ io.on("connection", (socket) => {
         users[socket.userId].playerName = null;
         callback({status: "success"});
         console.log(`User ${userId} left room ${roomNumber}`);
+        io.to(roomNumber).emit("recieve_player_list", Object.values(room.players).map(player => 
+            ({name: player.name, 
+            score: player.score})
+        ));;
     });
 
     //for when a socket sends a message
@@ -129,6 +147,27 @@ io.on("connection", (socket) => {
         }
         delete users[socket.userId];
         socket.disconnect();
+    });
+
+    socket.on("get_host_room_number", (callback) => {
+        let number = Math.floor(Math.random() * 10000);
+        while (rooms[number]) {
+            number = Math.floor(Math.random() * 10000);
+        }
+        callback({roomNumber: number});
+        console.log(`Created room: ${number}`)
+    })
+
+    socket.on("host_create_room", (roomNumber, callback) => {
+        if (rooms[roomNumber]) {
+            callback({status: "error"});
+        } else {
+            rooms[roomNumber] = new Room(roomNumber);
+            callback({status: "success"});
+            socket.join(roomNumber);
+            users[socket.userId].roomNumber = roomNumber;
+            users[socket.userId].playerName = "Host";
+        }
     });
 });
 

@@ -27,4 +27,4 @@ class Player{
     }
 }
 
-module.exports = Room;
+module.exports = {Room, Player};

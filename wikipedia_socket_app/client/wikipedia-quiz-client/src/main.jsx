@@ -11,7 +11,7 @@ import { SocketContextProvider } from './context/SocketContext.jsx';
 const router = createBrowserRouter([
   {path:"/", element: <App/>},
   {path:"/play", element: <ClientLobby/>},
-  {path:"/host", element: <App/>},
+  {path:"/host", element: <HostLobby/>},
 ]);
 
 createRoot(document.getElementById('root')).render(

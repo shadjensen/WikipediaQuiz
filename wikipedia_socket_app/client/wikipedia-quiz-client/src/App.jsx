@@ -35,6 +35,10 @@ function App() {
     })
   }, [socket]);
 
+  useEffect(() => {
+    clearLocalStorage();
+  });
+
   return (
    <>
 
@@ -46,7 +50,7 @@ function App() {
         <button>Host</button>
       </Link>
       <Link to={"/play"}>
-        <button onClick={clearLocalStorage}>Join</button>
+        <button>Join</button>
       </Link>
     </div>
 
