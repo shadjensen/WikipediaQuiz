@@ -8,7 +8,7 @@ const { cp } = require('fs');
 
 app.use(cors());
 const server = http.createServer(app);
-const maxRoomSize = 20;
+const maxRoomSize = 2;
 
 const io = new Server(server, {
     cors: {
@@ -36,6 +36,25 @@ io.on("connection", (socket) => {
         //when a user reconnects, reassign the current connection to the previous one
         console.log(`User ${userId} reconnected.`);
         users[userId].socket = socket;
+        const roomNumber = users[userId].roomNumber;
+        const room = rooms[roomNumber];
+        if (room) {
+            if (room.count <= maxRoomSize) {
+                socket.join(roomNumber);
+                console.log(`User ${userId} rejoined room ${roomNumber}`);
+                io.to(roomNumber).emit("recieve_player_list", Object.values(room.players).map(player => 
+                    ({name: player.name, 
+                    score: player.score})
+                ));
+                
+            } else {
+                console.log(`Room ${roomNumber} is full. User ${userId} cannot rejoin/`);
+                users[userId].roomNumber = null;
+                users[userId].playerName = null;
+                socket.leave(roomNumber);
+            }
+        }
+
     } else {
         //create a new connection for the user
         console.log(`New user ${userId} connected.`);
@@ -57,7 +76,7 @@ io.on("connection", (socket) => {
                 console.log(`Room ${roomNumber} does not exist. ${userId} cannot join.`);
                 return callback({status: "error", message: "Room does not exist or full"});
             }
-
+            
             socket.join(roomNumber);
             callback({status: "success"});
             console.log(`User ${userId} joined room ${roomNumber}`);
@@ -120,13 +139,18 @@ io.on("connection", (socket) => {
         ));;
     });
 
-    //for when a socket sends a message
-    socket.on("send_message", (data) => {
-        console.log(data);
-        socket.to(data.room).emit("recieve_message", data);
-    })
 
     socket.on("disconnecting", () => {
+        const roomNumber = users[socket.userId].roomNumber;
+        if (roomNumber && rooms[roomNumber]) {
+            const room = rooms[roomNumber];
+            room.removePlayer(users[socket.userId].playerName);
+            socket.leave(roomNumber);
+        } else {
+            users[socket.userId].roomNumber = null;
+            users[socket.userId].playerName = null;
+        }
+
  
     });
 

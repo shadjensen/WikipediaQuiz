@@ -147,6 +147,8 @@ function ClientGameRoom({roomNumber}){
     const playerName = localStorage.getItem("playerName");
     const [playerList, setPlayerList] = useState([]);
 
+
+
     socket.on("recieve_player_list", (players) => {
         let playerNames = players.map(player => player.name);
         console.log(`Recieved player list: ${JSON.stringify(players)}`);

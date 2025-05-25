@@ -36,21 +36,25 @@ function HostWaitingRoom(){
         });
     }, [roomNumber, socket]);
 
+    
 
 
-    socket.on("recieve_player_list", (players) => {
-        let playerMap = players.map(player => ({name: player.name, score: player.score}));
-        console.log(`Recieved player list: ${JSON.stringify(players)}`);
+    useEffect(() => {
 
-        setPlayerList(playerMap);
-    });
+        socket.on("recieve_player_list", (players) => {
+            let playerMap = players.map(player => ({name: player.name, score: player.score}));
+            console.log(`Recieved player list: ${JSON.stringify(players)}`);
 
-    socket.emit("get_player_list", roomNumber, (response) => {
-        if (response.status === "success") {
-            setPlayerList(response.playerList);
-        } else {
-            console.log("Failed to get player list");
-        }
+            setPlayerList(playerMap);
+        });
+
+        socket.emit("get_player_list", roomNumber, (response) => {
+            if (response.status === "success") {
+                setPlayerList(response.playerList);
+            } else {
+                console.log("Failed to get player list");
+            }
+        });
     });
         
 
