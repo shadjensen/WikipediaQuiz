@@ -15,9 +15,9 @@ const router = createBrowserRouter([
 ]);
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
+  
     <SocketContextProvider>
       <RouterProvider router={router}/>
-    </SocketContextProvider>
-  </StrictMode>,
+    </SocketContextProvider>,
+  
 )

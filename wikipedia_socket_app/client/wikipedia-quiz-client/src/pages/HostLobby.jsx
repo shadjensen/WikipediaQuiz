@@ -13,6 +13,7 @@ function HostWaitingRoom(){
     const navigate = useNavigate();
     const [roomNumber, setRoomNumber] = useState("");
     const [playerList, setPlayerList] = useState([]);
+    const [roomConnected, setRoomConnected] = useState(false);
 
     useEffect(() => {
         const storedRoomNumber = localStorage.getItem("roomNumber");
@@ -40,22 +41,23 @@ function HostWaitingRoom(){
 
 
     useEffect(() => {
-
-        socket.on("recieve_player_list", (players) => {
+        const handleRecievePlayerList = (players) => {
             let playerMap = players.map(player => ({name: player.name, score: player.score}));
             console.log(`Recieved player list: ${JSON.stringify(players)}`);
-
             setPlayerList(playerMap);
-        });
+        }
 
-        socket.emit("get_player_list", roomNumber, (response) => {
-            if (response.status === "success") {
-                setPlayerList(response.playerList);
-            } else {
-                console.log("Failed to get player list");
-            }
-        });
-    });
+        console.log(`Setting up receieve_player_list for room: ${roomNumber}`)
+        socket.on("recieve_player_list", handleRecievePlayerList);
+
+
+        return () => {
+            console.log(`Cleaning up receieve_player_list for room: ${roomNumber}`);
+            socket.off("recieve_player_list", handleRecievePlayerList);
+        }
+        
+    }, [socket, roomNumber]);
+
         
 
 

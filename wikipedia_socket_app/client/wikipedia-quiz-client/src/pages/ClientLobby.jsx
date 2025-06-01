@@ -30,9 +30,8 @@ function ClientRoomJoin({onLobbyJoin}) {
     const socket = useContext(SocketContext);
     const [roomNumber, setRoomNumber] = useState("");
     const [roomJoined, setRoomJoined] = useState(false);
-    const [hasJoined, setHasJoined] = useState(false);
     const [username, setUsername] = useState('');
-    const [joinStatus, setJoinStatus] = useState("");
+    const [errorStatus, setErrorStatus] = useState("");
 
 
     const navigate = useNavigate();
@@ -41,51 +40,74 @@ function ClientRoomJoin({onLobbyJoin}) {
         const storedRoomNumber = localStorage.getItem("roomNumber");
         const storedRoomJoined = localStorage.getItem("roomSocketConnected") === 'true';
         const storedPlayerName = localStorage.getItem("playerName");
-        const storedHasJoined = localStorage.getItem("hasJoined") === 'true';
 
-        //connection happens in two phases. First you connect to the socket and room,
-        //then you join the lobby with a username. The first must take place before the second
-        if (storedRoomNumber && storedRoomJoined) {
+        if (storedRoomNumber && storedRoomJoined && storedPlayerName) {
             setRoomNumber(storedRoomNumber);
             setRoomJoined(storedRoomJoined);
+            setUsername(storedPlayerName);
 
-            if (storedPlayerName && storedHasJoined) {
-                setUsername(storedPlayerName);
-                setHasJoined(storedHasJoined);
-            }
+            handleRejoin();
         }
-    });
+    }, []);
+
+    useEffect(() => {
+        const storedRoomNumber = localStorage.getItem("roomNumber");
+        const storedRoomJoined = localStorage.getItem("roomSocketConnected") === 'true';
+        const storedPlayerName = localStorage.getItem("playerName");
+
+        if (storedRoomNumber && storedRoomJoined && storedPlayerName) {
+            console.log(`Rejoining room: ${storedRoomNumber} as ${storedPlayerName}`);
+
+            handleRejoin();
+        }
+
+    }, [roomJoined, roomNumber, username]);
 
     const handleJoin = (inputNumber) => {
-        if (inputNumber && !isNaN(inputNumber)) {
+        if (inputNumber === '' || isNaN(inputNumber)) {
+            setErrorStatus("Please enter a valid room number");
+            return;
+        } else if(username.trim() === '') {
+            setErrorStatus("Please enter a valid gamertag");
+            return;
+        } else {
+            //if there is a valid username and room number, attempt to join room
             clearLocalStorage();
 
-            socket.emit("join_room", inputNumber, (response) => {
+            socket.emit("player_join_room", inputNumber, username, (response) => {
                 if (response.status === "success") {
-                    console.log(`Successfully joined room: ${inputNumber}`);
+                    console.log(`successfully joined room: ${inputNumber}`);
                     setRoomJoined(true);
                     localStorage.setItem("roomNumber", inputNumber);
                     localStorage.setItem("roomSocketConnected", true);
+                    localStorage.setItem("playerName", username);
                 } else {
                     console.log(`Failed to join room: ${inputNumber}`);
-                    setJoinStatus("That Room Number is invalid or full");
+                    setErrorStatus(response.message);
                 }
             });
 
         }
     }
 
-    const handleEnterLobby = () => {
+    const handleRejoin = () => {
+        console.log(`Attempting to rejoin room: ${roomNumber} as ${username}`);
         if (username.trim() !== '') {
             socket.emit("player_join_room", roomNumber, username, (response) => {
                 if (response.status === "success") {
                     console.log(`Successfully joined lobby as: ${username}`);
-                    setHasJoined(true);
+                    setRoomJoined(true);
                     localStorage.setItem('playerName', username);
-                    localStorage.setItem('hasJoined', true);
                     onLobbyJoin(roomNumber);
+
                 } else {
+                    //if failed to rejoin, redirect player to empty join page
                     console.log(`Failed to join lobby: ${response.message}`);
+                    clearLocalStorage();
+                    setRoomNumber("");
+                    setErrorStatus("Failed to rejoin room. Please try again.");
+                    setRoomJoined(false);
+                    setUsername('');
                 }
             });
         }
@@ -112,31 +134,25 @@ function ClientRoomJoin({onLobbyJoin}) {
     
     function clearLocalStorage() {
         localStorage.removeItem("playerName");
-        localStorage.removeItem("hasJoined");
         localStorage.removeItem("roomNumber");
         localStorage.removeItem("roomSocketConnected");
-        console.log("removed playerName, hasJoined, roomNumber and roomSocketConnected from local storage");
+        console.log("removed playerName, roomNumber and roomSocketConnected from local storage");
     }
 
-    if (!roomJoined) {
     return (<>
         <h1>This is the join page</h1>
         <input type='number' placeholder='Input Room Number' onChange={(e) => setRoomNumber(e.target.value)}/>
-        <button onClick={() => handleJoin(roomNumber)}>Join</button>
+        <div>
+            <input type='text' placeholder='Enter your gamertag...' onChange={(e) => setUsername(e.target.value)}/>
+            <button onClick={() => handleJoin(roomNumber)}>Enter Lobby</button>
+            <button onClick={() => handleRoomLeave}>Leave Room</button>
+        </div>
+        <div className="error-status">
+            <p>{errorStatus}</p>
+        </div>
         <button onClick={() => navigate('/')}>Back</button>
     </>);
-    } else if (!hasJoined){
 
-        return (<>
-                <div>
-                    <input type='text' placeholder='Enter your gamertag...' onChange={(e) => setUsername(e.target.value)}/>
-                    <button onClick={handleEnterLobby}>Enter Lobby</button>
-                    <button onClick={handleRoomLeave}>Leave Room</button>
-                </div>
-            </>);
-    } else {
-        handleEnterLobby();
-    }
 
 }
 
@@ -172,9 +188,14 @@ function ClientGameRoom({roomNumber}){
         navigate('/');
     }
 
+    useEffect(() => {
+        
+        socket.emit("get_player_list", roomNumber);
+    }, []);
 
 
 
+    
     return (<>
         <h1>Welcome to the game room!</h1>
         <button onClick={handleLeaveRoom}>leave game room</button>

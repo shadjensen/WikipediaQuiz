@@ -5,10 +5,11 @@ const { Server } = require("socket.io")
 const cors = require('cors');
 const {Room, Player} = require('./models/Room.js');
 const { cp } = require('fs');
+const { join } = require('path');
 
 app.use(cors());
 const server = http.createServer(app);
-const maxRoomSize = 2;
+const maxRoomSize = 20;
 
 const io = new Server(server, {
     cors: {
@@ -37,23 +38,24 @@ io.on("connection", (socket) => {
         console.log(`User ${userId} reconnected.`);
         users[userId].socket = socket;
         const roomNumber = users[userId].roomNumber;
+        let username = users[userId].playerName || null;
         const room = rooms[roomNumber];
-        if (room) {
-            if (room.count <= maxRoomSize) {
-                socket.join(roomNumber);
-                console.log(`User ${userId} rejoined room ${roomNumber}`);
-                io.to(roomNumber).emit("recieve_player_list", Object.values(room.players).map(player => 
-                    ({name: player.name, 
-                    score: player.score})
-                ));
-                
-            } else {
-                console.log(`Room ${roomNumber} is full. User ${userId} cannot rejoin/`);
-                users[userId].roomNumber = null;
-                users[userId].playerName = null;
-                socket.leave(roomNumber);
-            }
+        socket.userId = userId;
+
+        let response = joinRoom(roomNumber, username, socket);
+        if (response.status === "failure") {
+            users[userId].roomNumber = null;
+            users[userId].playerName = null;
+            socket.leave(roomNumber);
+        } else {
+            //if the user is rejoining the room, retrieve the state of the room
+            io.to(roomNumber).emit("recieve_player_list", Object.values(room.players).map(player => 
+                ({name: player.name, 
+                score: player.score})
+            ));
+
         }
+
 
     } else {
         //create a new connection for the user
@@ -69,49 +71,40 @@ io.on("connection", (socket) => {
     socket.userId = userId;
     
 
-    //logic for when a socket wants to join a room
-    socket.on("join_room", (roomNumber, callback) => {
-        if (isValidRoom(roomNumber)) {
-            if (!rooms[roomNumber]) {
-                console.log(`Room ${roomNumber} does not exist. ${userId} cannot join.`);
-                return callback({status: "error", message: "Room does not exist or full"});
+    socket.on("player_join_room", (roomNumber, playerName, callback) => {
+
+        let response = joinRoom(roomNumber, playerName, socket);
+        if (response.status === "failure") {
+            callback(response);
+        } else {
+            //retrieve the state of the room
+            console.log(`User ${userId} joined room ${roomNumber} as ${playerName}. Sending player list.`);
+            
+            const targetRoom = io.sockets.adapter.rooms.get(roomNumber);
+            if (targetRoom){
+                console.log(`Sockets in adapter for room ${roomNumber}:`, Array.from (targetRoom.keys()));
+            } else {
+                console.warn(`Room ${roomNumber} was not found in adapter. Cannot emit`);
             }
             
-            socket.join(roomNumber);
-            callback({status: "success"});
-            console.log(`User ${userId} joined room ${roomNumber}`);
-
-        } else {
-            callback({status: "error", message: "Room does not exist or full"});
-        }
-    });
-
-    socket.on("player_join_room", (roomNumber, playerName, callback) => {
-        if (rooms[roomNumber]) {
-            const player = new Player(playerName);
-            rooms[roomNumber].addPlayer(player);
-            const room = rooms[roomNumber];
-
-            users[socket.userId].playerName = playerName;
-            users[socket.userId].roomNumber = roomNumber;
-            console.log(`User ${userId} joined room ${roomNumber} as ${playerName}`);
-            callback({status: "success"});
-            console.log(`Sending player list as ${JSON.stringify(Object.values(room.players))}`);
-            io.to(roomNumber).emit("recieve_player_list", Object.values(room.players).map(player => 
+            
+            io.to(roomNumber).emit("recieve_player_list", Object.values(rooms[roomNumber].players).map(player =>
                 ({name: player.name, 
                 score: player.score})
-            ));;
-        } else {
-            callback({status: "error", message: "Room does not exist"});
+            ));
+            callback(response);
         }
     });
 
-    socket.on("get_player_list", (roomNumber, callback) => {
+    socket.on("get_player_list", (roomNumber) => {
         if (rooms[roomNumber]) {
-            const room = rooms[roomNumber];
-            callback({status: "success", playerList: Object.values(room.players).map(player => ({name: player.name, score: player.score}))});
+            console.log(`Room ${roomNumber} requested player list.`);
+            io.to(roomNumber).emit("recieve_player_list", Object.values(rooms[roomNumber].players).map(player =>
+                ({name: player.name, 
+                score: player.score})
+            ));        
         } else {
-            callback({status: "error", message: "Room does not exist"});
+            console.log(`Room ${roomNumber} requested player list but ${roomNumber} does not exist.`);
         }
     });
 
@@ -178,8 +171,9 @@ io.on("connection", (socket) => {
         while (rooms[number]) {
             number = Math.floor(Math.random() * 10000);
         }
-        callback({roomNumber: number});
         console.log(`Created room: ${number}`)
+        callback({roomNumber: number});
+
     })
 
     socket.on("host_create_room", (roomNumber, callback) => {
@@ -187,10 +181,14 @@ io.on("connection", (socket) => {
             callback({status: "error"});
         } else {
             rooms[roomNumber] = new Room(roomNumber);
-            callback({status: "success"});
             socket.join(roomNumber);
+            console.log(`Host created room: ${roomNumber} at socket ${socket.id}`);
+            console.log(`Host socket ${socket.id} is now in rooms:`, Array.from(socket.rooms)); // <--- ADD THIS
+
             users[socket.userId].roomNumber = roomNumber;
             users[socket.userId].playerName = "Host";
+            callback({status: "success"});
+
         }
     });
 });
@@ -204,4 +202,35 @@ function isValidRoom(roomNumber) {
         return false;
     }
     return true;
+}
+
+function joinRoom(roomNumber, playerName, socket) {
+    if (!roomNumber || !playerName) {
+        console.log(`Invalid room number or player name. User ${socket.userId} cannot join room.`);
+        if (!roomNumber) {
+            console.log("Room number is null");
+        } else {
+            console.log("Player name is null");
+        }
+        return {status: "failure", message: "Invalid room number or player name"};
+    }
+
+    if (rooms[roomNumber]) {
+        if (rooms[roomNumber].count < maxRoomSize) {
+            rooms[roomNumber].addPlayer(new Player(playerName));
+            users[socket.userId].roomNumber = roomNumber;
+            users[socket.userId].playerName = playerName;
+            //join the socket to the room
+            socket.join(roomNumber);
+            console.log(`User ${socket.userId} joined room ${roomNumber}`);
+            return {status: "success", message: `User ${socket.userId} joined room ${roomNumber}`};
+        } else {
+            console.log(`Room ${roomNumber} is full, User ${socket.userId} cannot join`);
+            return {status: "failure", message: `Room ${roomNumber} is full`};
+        }
+    } else {
+        console.log(`Room ${roomNumber} does not exist. User ${socket.userId} cannot join`);
+        return {status: "failure", message: `Room ${roomNumber} does not exist`};
+    }
+
 }

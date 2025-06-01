@@ -39,6 +39,9 @@ function App() {
     clearLocalStorage();
   });
 
+
+
+
   return (
    <>
 
@@ -53,15 +56,8 @@ function App() {
         <button>Join</button>
       </Link>
     </div>
-
-
-    <div className="App">
-      <input placeholder="Room Number..." onChange={(event) => setRoom(event.target.value)}></input>
-      <button onClick={joinRoom}>Join Room</button>
-    <input placeholder="Message..." onChange={(event) => setMessage(event.target.value)}/>
-    <button onClick={sendMessage}>Send Message</button>
-    <h1>Message</h1>
-    <p>{recievedMessage}</p>
+    <div>
+      <button onClick={clearLocalStorage} >Clear Storage</button>
     </div>
    </>
   )
