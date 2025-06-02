@@ -6,6 +6,7 @@ const cors = require('cors');
 const {Room, Player} = require('./models/Room.js');
 const { cp } = require('fs');
 const { join } = require('path');
+const { callbackify } = require('util');
 
 app.use(cors());
 const server = http.createServer(app);
@@ -96,6 +97,21 @@ io.on("connection", (socket) => {
         }
     });
 
+    socket.on("request_player_list", (roomNumber, callback) => {
+        if (rooms[roomNumber]) {
+            console.log(`Room ${roomNumber} requested player list.`);
+            const playerList = Object.values(rooms[roomNumber].players).map(player =>
+                ({name: player.name, 
+                score: player.score})
+            );
+            socket.emit("recieve_player_list", playerList);
+            callback({status: "success", players: playerList});
+        } else {
+            console.log(`Room ${roomNumber} requested player list but ${roomNumber} does not exist.`);
+            callback({status: "error", message: `Room ${roomNumber} does not exist.`});
+        }
+    });
+
     socket.on("get_player_list", (roomNumber) => {
         if (rooms[roomNumber]) {
             console.log(`Room ${roomNumber} requested player list.`);
@@ -166,6 +182,7 @@ io.on("connection", (socket) => {
         socket.disconnect();
     });
 
+    //depreciated
     socket.on("get_host_room_number", (callback) => {
         let number = Math.floor(Math.random() * 10000);
         while (rooms[number]) {
@@ -176,19 +193,41 @@ io.on("connection", (socket) => {
 
     })
 
-    socket.on("host_create_room", (roomNumber, callback) => {
-        if (rooms[roomNumber]) {
-            callback({status: "error"});
+    socket.on("host_create_room", (callback) => {
+        //gets an open room number between 1000 and 9999
+        let roomNumber = generateRoomNumber();
+
+        rooms[roomNumber] = new Room(roomNumber);
+        let playerName = "host";
+
+        let response = joinRoom(roomNumber, playerName, socket);
+
+        if (response.status === "failure") {
+            callback(response);
         } else {
-            rooms[roomNumber] = new Room(roomNumber);
-            socket.join(roomNumber);
-            console.log(`Host created room: ${roomNumber} at socket ${socket.id}`);
-            console.log(`Host socket ${socket.id} is now in rooms:`, Array.from(socket.rooms)); // <--- ADD THIS
+            //retrieve the state of the room
+            console.log(`User ${userId} joined room ${roomNumber} as ${playerName}. Sending player list.`);
+            
+            const targetRoom = io.sockets.adapter.rooms.get(roomNumber);
+            if (targetRoom){
+                console.log(`Sockets in adapter for room ${roomNumber}:`, Array.from (targetRoom.keys()));
+            } else {
+                console.warn(`Room ${roomNumber} was not found in adapter. Cannot emit`);
+            }
+            
+            
+            // io.to(roomNumber).emit("recieve_player_list", Object.values(rooms[roomNumber].players).map(player =>
+            //     ({name: player.name, 
+            //     score: player.score})
+            // ));
 
-            users[socket.userId].roomNumber = roomNumber;
-            users[socket.userId].playerName = "Host";
-            callback({status: "success"});
 
+            const newResponse = {status: response.status,
+                message: response.message,
+                roomNumber: roomNumber
+            };
+
+            callback(newResponse);
         }
     });
 });
@@ -202,6 +241,15 @@ function isValidRoom(roomNumber) {
         return false;
     }
     return true;
+}
+
+function generateRoomNumber() {
+    // Generates a random room number between 0 and 9999
+    let roomNumber = Math.floor(Math.random() * 9000) + 1000;
+    while (!isValidRoom(roomNumber)) {
+        roomNumber = Math.floor(Math.random() * 9000) + 1000;
+    }
+    return roomNumber;
 }
 
 function joinRoom(roomNumber, playerName, socket) {
