@@ -2,10 +2,44 @@ import React, {useState, useEffect, useContext, useRef} from 'react';
 import { Link , useNavigate} from "react-router-dom";
 import { SocketContext } from '../context/SocketContext.jsx';
 
+
+
 function HostLobby() {
-    return (<> 
-        <HostWaitingRoom/>
-    </>);
+    const socket = useContext(SocketContext);
+    const [roomSetup, setRoomSetup] = useState(false);
+    const [roomNumber, setRoomNumber] = useState("");
+    const roomCreationAttemptedRef = useRef(false);
+ 
+
+    useEffect(() => {
+        if (!roomCreationAttemptedRef.current) {
+            socket.emit("host_create_room", (response) => {
+                if (response.status === "success") {
+                    setRoomNumber(response.roomNumber);
+                    localStorage.setItem("roomNumber", response.roomNumber);
+                    console.log(`Host room created with number: ${response.roomNumber}`);
+                    roomCreationAttemptedRef.current = true;
+                } else {
+                    console.log(`Failed to create host room: ${response.message}`);
+                }
+            });
+        }
+    } ,[]);
+
+    const onTimerFinish = () => {
+        setRoomSetup(true);
+    }
+
+    if (!roomSetup) {
+        return (<> 
+            <HostWaitRoomLoadingScreen initialSeconds={3} onTimerFinish={onTimerFinish}/>
+        </>);
+    } else {
+        return (<>
+            <HostWaitingRoom/>
+        </>);
+    }
+
 }
 
 function HostWaitingRoom(){
@@ -121,6 +155,36 @@ function HostWaitingRoom(){
             ))}
         </ul>
     </>);
+}
+
+function HostWaitRoomLoadingScreen({initialSeconds, onTimerFinish}) {
+    const [secondsRemaining, setSecondsRemaining] = useState(initialSeconds);
+
+    useEffect(() => {
+        //this causes the number to never actually reach 0, because
+        // if it does the value on screen can flash as negative which 
+        //appears odd
+        if (secondsRemaining <= 0.1) {
+            onTimerFinish();
+            return;
+        }
+        const timer = setInterval(() => {
+            setSecondsRemaining(prev => prev - 0.1);
+        }, 100);
+
+        return () => clearInterval(timer);
+    }, [secondsRemaining]);
+
+    const formatTime = (seconds) => {
+        return (`${seconds.toFixed(2)} seconds remaining`);
+    }
+
+    return (<>
+        <div>
+            <h1>Creating Room...</h1>
+            <h1>{formatTime(secondsRemaining)}</h1>
+        </div>
+    </>)
 }
 
 export default HostLobby;
