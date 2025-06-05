@@ -42,14 +42,47 @@ function HostLobby() {
 
 }
 
+function HostWaitRoomLoadingScreen({initialSeconds, onTimerFinish}) {
+    const [secondsRemaining, setSecondsRemaining] = useState(initialSeconds);
+
+    useEffect(() => {
+        //this causes the number to never actually reach 0, because
+        // if it does the value on screen can flash as negative which 
+        //appears odd
+        if (secondsRemaining <= 0.1) {
+            onTimerFinish();
+            return;
+        }
+        const timer = setInterval(() => {
+            setSecondsRemaining(prev => prev - 0.1);
+        }, 100);
+
+        return () => clearInterval(timer);
+    }, [secondsRemaining]);
+
+    const formatTime = (seconds) => {
+        return (`${seconds.toFixed(2)} seconds remaining`);
+    }
+
+    return (<>
+        <div>
+            <h1>Creating Room...</h1>
+            <h1>{formatTime(secondsRemaining)}</h1>
+        </div>
+    </>)
+}
+
 function HostWaitingRoom(){
     const socket = useContext(SocketContext);
     const navigate = useNavigate();
     const [roomNumber, setRoomNumber] = useState("");
     const [playerList, setPlayerList] = useState([]);
     const [errorStatus, setErrorStatus] = useState("");
+    const [showOptions, setShowOptions] = useState(false);
+    const [readyToStart, setReadyToStart] = useState(false);
     const roomCreationAttemptedRef = useRef(false);
 
+    //ensure the host is connected to the room
     useEffect(() => {
         const storedRoomNumber = localStorage.getItem("roomNumber");
         if (storedRoomNumber) {
@@ -112,7 +145,7 @@ function HostWaitingRoom(){
     }, [socket]);
 
 
-
+    //set up listeners for the host socket
     useEffect(() => {
         const handleRecievePlayerList = (players) => {
             let playerMap = players.map(player => ({name: player.name, score: player.score}));
@@ -131,19 +164,32 @@ function HostWaitingRoom(){
         
     }, [socket, roomNumber]);
 
-
-        
-
-
+    //handle a voluntary quit from the host
     const handleQuit = () => {
         localStorage.removeItem("roomNumber");
         //add a signal to the server that the host is quitting
         navigate("/");
     }
 
+    const unreadyLobby = () => {
+        setReadyToStart(false);
+    }
 
+    const handleStartGame = () => {
+
+    }
 
     return (<>
+        {showOptions ? (
+            <>
+            <div>
+                <HostWaitingRoomOptions socket={socket} roomNumber={roomNumber} unreadyLobby={unreadyLobby}/>
+                <button onClick={() => setShowOptions(false)}>Close Options</button>
+            </div>
+                </>) : 
+        <>
+        <button onClick={() => setShowOptions(true)}>Options</button>
+        </>}
         <h1>{errorStatus}</h1>
         <h1>Host Lobby</h1>
         <p>Room Number: {roomNumber}</p>
@@ -154,37 +200,62 @@ function HostWaitingRoom(){
                 <li key={index}>{player.name}</li>
             ))}
         </ul>
+        {readyToStart ? (<button>Start Game</button>) : (null)}
     </>);
 }
 
-function HostWaitRoomLoadingScreen({initialSeconds, onTimerFinish}) {
-    const [secondsRemaining, setSecondsRemaining] = useState(initialSeconds);
+function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
+    const [wikiPageTitle, setWikiPageTitle] = useState("");
+    const [wikiPageCount, setWikiPageCount] = useState(0);
 
-    useEffect(() => {
-        //this causes the number to never actually reach 0, because
-        // if it does the value on screen can flash as negative which 
-        //appears odd
-        if (secondsRemaining <= 0.1) {
-            onTimerFinish();
+    const handleUrlSubmit = () => {
+        if (wikiPageTitle.trim() === "") {
+            console.error("URL cannot be empty");
+            unreadyLobby();
             return;
         }
-        const timer = setInterval(() => {
-            setSecondsRemaining(prev => prev - 0.1);
-        }, 100);
 
-        return () => clearInterval(timer);
-    }, [secondsRemaining]);
-
-    const formatTime = (seconds) => {
-        return (`${seconds.toFixed(2)} seconds remaining`);
+        socket.emit("add_url", roomNumber, wikiPageTitle, (response) => {
+            if (response.status === "success") {
+                console.log(`Added url: ${wikiPageTitle}`);
+                setWikiPageCount(prevCount => prevCount + 1);
+                setWikiPageTitle("");
+            } else {
+                console.error(`Failed to add url: ${response.message}`);
+            }
+        });
     }
 
-    return (<>
+    const handleUrlClear = () => {
+
+        socket.emit("clear_urls", roomNumber, (response) => {
+            if (response.status === "success") {
+                console.log("Cleared urls successfully");
+                setWikiPageTitle("");
+                setWikiPageCount(0);
+            } else {
+                console.error(`Failed to clear urls: ${response.message}`);
+            }
+        });
+    }
+    return (
+    <>
         <div>
-            <h1>Creating Room...</h1>
-            <h1>{formatTime(secondsRemaining)}</h1>
+            <p>Urls:</p>
+            <input type="text" placeholder='Enter wikipedia url' onChange={(event) => setWikiPageTitle(event.target.value)}/>
+            <button onClick={handleUrlSubmit}>Submit</button>
+            <button onClick={handleUrlClear}>Clear</button>
+        </div>
+
+        <div>
+            <p>Timer: </p>
+            <input type="number" placeholder='Enter timer in seconds'/>
+        </div>
+        <div>
+            
         </div>
     </>)
 }
+
 
 export default HostLobby;

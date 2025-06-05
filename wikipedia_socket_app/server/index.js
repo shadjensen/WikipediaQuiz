@@ -3,7 +3,7 @@ const app = express();
 const http = require("http");
 const { Server } = require("socket.io")
 const cors = require('cors');
-const {Room, Player} = require('./models/Room.js');
+const {RoomModel, Player} = require('./models/RoomModel.js');
 const { cp } = require('fs');
 const { join } = require('path');
 const { callbackify } = require('util');
@@ -197,7 +197,7 @@ io.on("connection", (socket) => {
         //gets an open room number between 1000 and 9999
         let roomNumber = generateRoomNumber();
 
-        rooms[roomNumber] = new Room(roomNumber);
+        rooms[roomNumber] = new RoomModel(roomNumber);
         let playerName = "host";
 
         let response = joinRoom(roomNumber, playerName, socket);
@@ -229,6 +229,29 @@ io.on("connection", (socket) => {
 
             callback(newResponse);
         }
+    });
+
+    socket.on("add_url", (roomNumber, url, callback) => {
+        if (!rooms[roomNumber]) {
+            console.log(`Room ${roomNumber} does not exist. Cannot add url.`);
+            return callback({status: "failure", message: `Room ${roomNumber} does not exist.`});
+        }
+        console.log(`Request to add url ${url} to room ${roomNumber}`);
+
+        rooms[roomNumber].addUrl(url);
+        console.log(`Url ${url} added to room ${roomNumber}`);
+        callback({status: "success", message: `Url ${url} added to room ${roomNumber}`});
+    });
+
+    socket.on("clear_urls", (roomNumber, callback) => {
+        if (!rooms[roomNumber]) {
+            console.log(`Room ${roomNumber} does not exist. Cannot clear urls.`);
+            return callback({status: "failure", message: `Room ${roomNumber} does not exist.`});
+        }
+
+        rooms[roomNumber].clearUrls();
+        console.log(`Urls cleared for room ${roomNumber}`);
+        callback({status: "success", message: `Urls cleared for room ${roomNumber}`});
     });
 });
 
