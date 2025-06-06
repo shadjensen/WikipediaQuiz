@@ -207,6 +207,7 @@ function HostWaitingRoom(){
 function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
     const [wikiPageTitle, setWikiPageTitle] = useState("");
     const [wikiPageCount, setWikiPageCount] = useState(0);
+    const [wikiPageAddStatus, setWikiPageAddStatus] = useState("");
 
     const handleUrlSubmit = () => {
         if (wikiPageTitle.trim() === "") {
@@ -220,8 +221,10 @@ function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
                 console.log(`Added url: ${wikiPageTitle}`);
                 setWikiPageCount(prevCount => prevCount + 1);
                 setWikiPageTitle("");
+                setWikiPageAddStatus(`Successfully added page: ${wikiPageTitle}`);
             } else {
                 console.error(`Failed to add url: ${response.message}`);
+                setWikiPageAddStatus(`${response.message}`);
             }
         });
     }

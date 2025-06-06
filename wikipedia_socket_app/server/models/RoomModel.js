@@ -36,23 +36,18 @@ class RoomModel{
 
     async addUrl(url) {
         if (!this.isValidUrl(url)){
-            return
+            return {status: "error", message: `Invalid title for: ${url}`}
         }
 
-        try {
-            const html = await this.getUrlHtml(url);
-            if (html) {
-                console.log(`Successfully fetched HTML`);
-                console.log(html);
-            }
-        } catch (error) {
-            console.error(`Error fetching Url: ${error.message}`);
-            throw new Error(error.message);
+        
+        const html = await this.getUrlHtml(url);
+        if (!html) {
+            return {status: "error", message: `Failed to fetch HTML for title: ${url}`}
         }
+        console.log(`Successfully fetched HTML`);
+        console.log(html);      
 
-       
-
-
+        return {status: "success", message: `Successfully added url: ${url}`, html: html};
     }
 
     isValidUrl(url) {

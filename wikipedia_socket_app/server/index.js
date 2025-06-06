@@ -231,16 +231,18 @@ io.on("connection", (socket) => {
         }
     });
 
-    socket.on("add_url", (roomNumber, url, callback) => {
+    socket.on("add_url", async (roomNumber, url, callback) => {
         if (!rooms[roomNumber]) {
             console.log(`Room ${roomNumber} does not exist. Cannot add url.`);
             return callback({status: "failure", message: `Room ${roomNumber} does not exist.`});
         }
         console.log(`Request to add url ${url} to room ${roomNumber}`);
 
-        rooms[roomNumber].addUrl(url);
-        console.log(`Url ${url} added to room ${roomNumber}`);
-        callback({status: "success", message: `Url ${url} added to room ${roomNumber}`});
+        let result = await rooms[roomNumber].addUrl(url);
+        console.log(`Attempted to add url ${url} to room ${roomNumber}. Result: ${result.status}`);
+        return callback(result);
+
+
     });
 
     socket.on("clear_urls", (roomNumber, callback) => {
