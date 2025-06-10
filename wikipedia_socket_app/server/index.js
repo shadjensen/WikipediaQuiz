@@ -3,7 +3,7 @@ const app = express();
 const http = require("http");
 const { Server } = require("socket.io")
 const cors = require('cors');
-const {RoomModel, Player} = require('./models/RoomModel.js');
+const {RoomModel, Player, WikiPage} = require('./models/RoomModel.js');
 const { cp } = require('fs');
 const { join } = require('path');
 const { callbackify } = require('util');
@@ -254,6 +254,24 @@ io.on("connection", (socket) => {
         rooms[roomNumber].clearUrls();
         console.log(`Urls cleared for room ${roomNumber}`);
         callback({status: "success", message: `Urls cleared for room ${roomNumber}`});
+    });
+
+    socket.on("get_question", (roomNumber, title, callback) => {
+        if (!rooms[roomNumber]) {
+            console.log(`Room ${roomNumber} does not exist. Cannot send question.`);
+            return callback({status: "failure", message: `Room ${roomNumber} does not exist.`});
+        }
+
+        const page = rooms[roomNumber].wikiPages[title];
+        if (!page) {
+            console.log(`Could not find page ${title} in room ${roomNumber}`);
+            return callback({status: "failure", message: `Could not find ${title} in ${roomNumber}`});
+        }
+        const question = page.getQuestion();
+
+        const response = {status: "success", sentence: question.sentence, keywords: question.keywords, correctAnswer: question.correctAnswer};
+
+        io.to(roomNumber).emit("receive_question", response);
     });
 });
 

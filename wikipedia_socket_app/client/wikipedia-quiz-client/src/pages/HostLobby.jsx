@@ -209,6 +209,25 @@ function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
     const [wikiPageCount, setWikiPageCount] = useState(0);
     const [wikiPageAddStatus, setWikiPageAddStatus] = useState("");
 
+    useEffect(() => {
+        const storedCount = localStorage.getItem("wikiPageCount");
+        if (storedCount) {
+            setWikiPageCount(parseInt(storedCount));
+        }
+
+
+    }); 
+
+    useEffect(() => {
+
+        const handleReceiveQuestion = (response) => {
+            console.log(`sentence: ${response.sentence}, keywords: ${response.keywords}, correctAnswer: ${response.correctAnswer}`);
+        }
+
+        socket.on("receive_question", handleReceiveQuestion);
+
+    });
+
     const handleUrlSubmit = () => {
         if (wikiPageTitle.trim() === "") {
             console.error("URL cannot be empty");
@@ -219,9 +238,11 @@ function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
         socket.emit("add_url", roomNumber, wikiPageTitle, (response) => {
             if (response.status === "success") {
                 console.log(`Added url: ${wikiPageTitle}`);
+                let count = wikiPageCount;
                 setWikiPageCount(prevCount => prevCount + 1);
                 setWikiPageTitle("");
                 setWikiPageAddStatus(`Successfully added page: ${wikiPageTitle}`);
+                localStorage.setItem("wikiPageCount", count + 1);
             } else {
                 console.error(`Failed to add url: ${response.message}`);
                 setWikiPageAddStatus(`${response.message}`);
@@ -230,7 +251,6 @@ function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
     }
 
     const handleUrlClear = () => {
-
         socket.emit("clear_urls", roomNumber, (response) => {
             if (response.status === "success") {
                 console.log("Cleared urls successfully");
@@ -238,6 +258,15 @@ function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
                 setWikiPageCount(0);
             } else {
                 console.error(`Failed to clear urls: ${response.message}`);
+            }
+        });
+    }
+
+    const handleGetQuestion = () => {
+        console.log("getQuestion clicked")
+        socket.emit("get_question", roomNumber, "Germany", (response) => {
+            if (response.status === "failure") {
+                console.error(response.message);
             }
         });
     }
@@ -255,7 +284,7 @@ function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
             <input type="number" placeholder='Enter timer in seconds'/>
         </div>
         <div>
-            
+            <button onClick={handleGetQuestion}>Get Question</button>
         </div>
     </>)
 }
