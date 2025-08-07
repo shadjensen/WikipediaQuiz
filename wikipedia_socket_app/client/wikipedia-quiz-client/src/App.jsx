@@ -23,6 +23,7 @@ function App() {
     localStorage.removeItem("playerName");
     localStorage.removeItem("roomNumber");
     localStorage.removeItem("roomSocketConnected");
+    localStorage.removeItem("isWaiting");
   }
 
   const sendMessage = () => { 

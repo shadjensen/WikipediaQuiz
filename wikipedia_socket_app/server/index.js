@@ -256,22 +256,28 @@ io.on("connection", (socket) => {
         callback({status: "success", message: `Urls cleared for room ${roomNumber}`});
     });
 
-    socket.on("get_question", (roomNumber, title, callback) => {
+    socket.on("get_question", (roomNumber, callback) => {
         if (!rooms[roomNumber]) {
             console.log(`Room ${roomNumber} does not exist. Cannot send question.`);
             return callback({status: "failure", message: `Room ${roomNumber} does not exist.`});
         }
 
-        const page = rooms[roomNumber].wikiPages[title];
-        if (!page) {
-            console.log(`Could not find page ${title} in room ${roomNumber}`);
-            return callback({status: "failure", message: `Could not find ${title} in ${roomNumber}`});
+        let pageTitle = rooms[roomNumber].getCurrentTitle();
+        console.log("page: " + pageTitle)
+
+
+        if (!pageTitle || (pageTitle == "")) {
+            console.log(`Could not find page ${pageTitle} in room ${roomNumber}`);
+            return callback({status: "failure", message: `Could not find ${pageTitle} in ${roomNumber}`});
         }
-        const question = page.getQuestion();
+        const question = rooms[roomNumber].wikiPages[pageTitle].getQuestion();
 
         const response = {status: "success", sentence: question.sentence, keywords: question.keywords, correctAnswer: question.correctAnswer};
 
+
         io.to(roomNumber).emit("receive_question", response);
+
+        return callback(response);
     });
 });
 

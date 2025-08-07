@@ -7,9 +7,18 @@ import { SocketContext } from '../context/SocketContext.jsx';
 function HostLobby() {
     const socket = useContext(SocketContext);
     const [roomSetup, setRoomSetup] = useState(false);
+    const [isWaiting, setIsWaiting] = useState(true);
     const [roomNumber, setRoomNumber] = useState("");
+    const [gameOptions, setGameOptions] = useState({});
     const roomCreationAttemptedRef = useRef(false);
  
+
+    useEffect(() => {
+        const waitingRoom = localStorage.getItem("isWaiting");
+        if (waitingRoom === "false") {
+            setIsWaiting(false);
+        }
+    }, []);
 
     useEffect(() => {
         if (!roomCreationAttemptedRef.current) {
@@ -30,15 +39,34 @@ function HostLobby() {
         setRoomSetup(true);
     }
 
-    if (!roomSetup) {
-        return (<> 
-            <HostWaitRoomLoadingScreen initialSeconds={3} onTimerFinish={onTimerFinish}/>
-        </>);
+    const handleEndWaitingRoom = () => {
+        setIsWaiting(false);
+        localStorage.setItem("isWaiting", "false");
+        socket.emit("get_question", roomNumber, (response) => {
+            if (response.status === "failure") {
+                console.log("unable to get question");
+            } else {
+                console.log("starting game");    
+            }
+        });
+    }
+
+    if (isWaiting) {
+        if (!roomSetup) {
+            return (<> 
+                <HostWaitRoomLoadingScreen initialSeconds={3} onTimerFinish={onTimerFinish}/>
+            </>);
+        } else {
+            return (<>
+                <HostWaitingRoom startGame={handleEndWaitingRoom}/>
+            </>);
+        }
     } else {
         return (<>
-            <HostWaitingRoom/>
+            <HostGameRoom  gameOptions={gameOptions}/>
         </>);
     }
+
 
 }
 
@@ -72,7 +100,7 @@ function HostWaitRoomLoadingScreen({initialSeconds, onTimerFinish}) {
     </>)
 }
 
-function HostWaitingRoom(){
+function HostWaitingRoom( {startGame} ){
     const socket = useContext(SocketContext);
     const navigate = useNavigate();
     const [roomNumber, setRoomNumber] = useState("");
@@ -139,8 +167,6 @@ function HostWaitingRoom(){
             } else {
                 setErrorStatus("Room creation attempt was true, but no room number was found");
             }
-
-        
         }
     }, [socket]);
 
@@ -175,15 +201,19 @@ function HostWaitingRoom(){
         setReadyToStart(false);
     }
 
-    const handleStartGame = () => {
+    const readyLobby = () => {
+        setReadyToStart(true);
+    }
 
+    const handleStartGame = () => {
+        startGame();
     }
 
     return (<>
         {showOptions ? (
             <>
             <div>
-                <HostWaitingRoomOptions socket={socket} roomNumber={roomNumber} unreadyLobby={unreadyLobby}/>
+                <HostWaitingRoomOptions socket={socket} roomNumber={roomNumber} unreadyLobby={unreadyLobby} readyLobby={readyLobby}/>
                 <button onClick={() => setShowOptions(false)}>Close Options</button>
             </div>
                 </>) : 
@@ -200,11 +230,11 @@ function HostWaitingRoom(){
                 <li key={index}>{player.name}</li>
             ))}
         </ul>
-        {readyToStart ? (<button>Start Game</button>) : (null)}
+        {readyToStart ? (<button onClick={handleStartGame}>Start Game</button>) : (null)}
     </>);
 }
 
-function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
+function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby, readyLobby}){
     const [wikiPageTitle, setWikiPageTitle] = useState("");
     const [wikiPageCount, setWikiPageCount] = useState(0);
     const [wikiPageAddStatus, setWikiPageAddStatus] = useState("");
@@ -218,15 +248,7 @@ function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
 
     }); 
 
-    useEffect(() => {
 
-        const handleReceiveQuestion = (response) => {
-            console.log(`sentence: ${response.sentence}, keywords: ${response.keywords}, correctAnswer: ${response.correctAnswer}`);
-        }
-
-        socket.on("receive_question", handleReceiveQuestion);
-
-    });
 
     const handleUrlSubmit = () => {
         if (wikiPageTitle.trim() === "") {
@@ -234,6 +256,8 @@ function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
             unreadyLobby();
             return;
         }
+
+        unreadyLobby();
 
         socket.emit("add_url", roomNumber, wikiPageTitle, (response) => {
             if (response.status === "success") {
@@ -243,11 +267,15 @@ function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
                 setWikiPageTitle("");
                 setWikiPageAddStatus(`Successfully added page: ${wikiPageTitle}`);
                 localStorage.setItem("wikiPageCount", count + 1);
+                readyLobby();
             } else {
                 console.error(`Failed to add url: ${response.message}`);
                 setWikiPageAddStatus(`${response.message}`);
+                readyLobby();
             }
         });
+
+        
     }
 
     const handleUrlClear = () => {
@@ -280,12 +308,114 @@ function HostWaitingRoomOptions({roomNumber, socket, unreadyLobby}){
         </div>
 
         <div>
+            <p>{wikiPageAddStatus}</p>
+        </div>
+
+        <div>
             <p>Timer: </p>
             <input type="number" placeholder='Enter timer in seconds'/>
         </div>
         <div>
             <button onClick={handleGetQuestion}>Get Question</button>
         </div>
+    </>)
+}
+
+function HostGameRoom(gameOptions) {
+    const socket = useContext(SocketContext);
+    const [pageTitle, setPageTitle] = useState("");
+    const [isQuestion, setIsQuestion] = useState(false);
+    const [isScores, setIsScores] = useState(false);
+    const [gameOver, setGameOver] = useState(false);
+    const [questionData, setQuestionData] = useState(null);
+    const [scoreData, setScoreData] = useState(null);
+    const [roomNumber, setRoomNumber] = useState("");
+
+
+    useEffect(() => {
+        let storedRoomNumber = localStorage.getItem("roomNumber");
+        if (storedRoomNumber) {
+            setRoomNumber(storedRoomNumber);
+        }
+    }, [roomNumber])
+
+    //set up listeners for questions and scores
+    useEffect(() => {
+        const handleReceiveQuestion = (response) => {
+            console.log(`sentence: ${response.sentence}, keywords: ${response.keywords}, correctAnswer: ${response.correctAnswer}`);
+            setQuestionData(response);
+            setIsQuestion(true);
+            setIsScores(false);
+        }
+
+        socket.on("receive_question", handleReceiveQuestion);
+
+    });
+
+    const handleEndQuestion = () => {
+        setIsQuestion(false);
+        setIsScores(true);
+    }
+
+    const handleEndScores = () => {
+
+        setIsQuestion(true);
+        setIsScores(false);
+
+        socket.emit("get_question", roomNumber, (response) => {
+            if (response.status === "failure") {
+                console.log("unable to get question");
+            } else {
+                console.log("recieved question");    
+            }
+        });
+    }
+
+    if (isQuestion) {
+        return (<HostGameRoomQuestion questionBatch={questionData} handleEndQuestion={handleEndQuestion}/>);
+    } else if (isScores) {
+        return (<HostGameRoomScores scoreBatch={null} handleEndScores={handleEndScores}/>);
+    } else if (gameOver) {
+        return (<>
+            <p>Game Over</p>
+        </>)
+    } else {
+    //this return statement should never be reached, and exists as a place to catch mistakes
+    return (<>
+    <h1>An Error Has Occured</h1>
+    <p>The game state is recognized as neither being in a Question state or a Score state, and the game is recognized as ongoing.</p>
+    </>);
+    }
+}
+
+function HostGameRoomQuestion({questionBatch, handleEndQuestion}) {
+    const [formattedSentence, setFormattedSentence] = useState("");
+
+    const formatQuestion = (batch) => {
+        let returnSentence = batch.sentence.replace("$$$"+batch.correctAnswer+"$$$", "_________");
+        returnSentence = returnSentence.replaceAll("$$$", "");
+        
+        setFormattedSentence(returnSentence);
+    }
+
+    useEffect(() => {
+        formatQuestion(questionBatch);
+    }, [])
+
+
+
+    return (<>
+    <h1>{formattedSentence}</h1>
+    <button onClick={handleEndQuestion}>Close Question</button>
+        </>)
+}
+
+function HostGameRoomScores({scoreBatch, handleEndScores}) {
+
+
+    return (<>
+    <h1>Scores</h1>
+    <button onClick={handleEndScores}>Next Question</button>
     </>)
 }
 

@@ -14,6 +14,16 @@ class RoomModel{
         //stores html data of pages with key pair {title, html}
         this.wikiPages = {};
         this.urlCount = 0;
+
+        this.currentTitle = "";
+
+        //this number represents the number of questions that can be asked per page
+        //before rotation to a new page. If this number is set to zero or less, it will be
+        //assumed that no rotations were intended.
+        this.pageRotationLimit = 0;
+
+
+        this.currentPageQuestionCount = 0;
     }
 
     addPlayer(player) {
@@ -71,9 +81,7 @@ class RoomModel{
                 //find all children of the p tag and replace all that aren't links with their inner text
                 //replace all a tags with $$$ which will be used as an escape character to identify links later
                 p.find('*').each((_, child) => {
-                    if (child.tagName === 'sup') {
-                        dom(child).replaceWith("")
-                    } else if (child.tagName !== 'a') {
+                    if (child.tagName !== 'a') {
                         dom(child).replaceWith(dom(child).text());
                     } else {
                         dom(child).replaceWith("$$$" + dom(child).text() + "$$$");
@@ -109,6 +117,8 @@ class RoomModel{
         page.sentenceCount = foundSentences.length;
         console.log(`Found ${page.sentenceCount} sentences in page: ${title}`);
         this.wikiPages[title] = page;
+        this.urls[this.urlCount] = title;
+        this.urlCount ++;
 
         return {status: "success", message: `Successfully added url: ${title}`, html: html};
     }
@@ -116,12 +126,6 @@ class RoomModel{
     async addRandomPages(pageCount) {
         const randomPagePool = ["Alec Benjamin", "Hank Green", "Pyramid", "Germany", "Dijkstra%27s_algorithm", "John Krasinski", "France", "RGB Color Model"];
 
-        let selectedPages = []
-        for (let count in pageCount) {
-
-            let randomPageIndex = Math.floor(Math.random()*randomPagePool.count()) 
-            await this.addUrl(randomPagePool[randomPageIndex])
-        }
     }
 
     isValidTitle(url) {
@@ -152,6 +156,22 @@ class RoomModel{
             console.error(error.message);
             return null;
         }
+    }
+
+    getCurrentTitle() {
+        console.log(`Fetching current title. Current urls: ${this.urlCount}, 
+            Current title: ${this.currentTitle}`)
+        if (this.currentTitle == "") {
+            if (this.urlCount == 0) {
+                return "";
+            }
+
+            let randomIndex = (Math.floor(Math.random() * this.urlCount));
+            this.currentTitle = this.urls[randomIndex];
+            console.log(`Setting current title to ${this.currentTitle} using index ${randomIndex}`)
+        }
+
+        return this.currentTitle;
     }
 
     clearUrls() {
