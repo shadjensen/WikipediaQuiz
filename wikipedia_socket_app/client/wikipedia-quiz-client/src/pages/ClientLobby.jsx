@@ -6,7 +6,31 @@ import { SocketContext } from '../context/SocketContext.jsx';
 function ClientLobby() {
 
     const [inGame, setInGame] = useState(false);
+    const [gameStart, setGameStart] = useState(false);
     const [roomNumber, setRoomNumber] = useState("");
+
+    //restore any locally stored variables
+    useEffect(() => {
+        let localInGame = localStorage.getItem("inGame");
+        if (localInGame) {
+            setInGame(localInGame);
+        }
+
+        let localGameStart = localStorage.getItem("gameStart");
+        if (localGameStart) {
+            setGameStart(localGameStart);
+        }
+
+        let localRoomNumber = localStorage.getItem("roomNumber");
+        if (localRoomNumber) {
+            setRoomNumber(localRoomNumber);
+        }
+    })
+    
+    //set socket listeners
+    useEffect(() => {
+
+    }, [])
     
 
     const onLobbyJoin = (roomNumber) => {
@@ -19,9 +43,17 @@ function ClientLobby() {
             <ClientRoomJoin onLobbyJoin={onLobbyJoin}/>
         </>);
     } else {
-        return (<>
-            <ClientGameRoom roomNumber={roomNumber}/>
-        </>);
+        if (!gameStart) {
+            return (<>
+                <ClientGameWaitingRoom roomNumber={roomNumber}/>
+            </>);
+        } else {
+            return (<>
+                <ClientGameRoom />
+            </>)
+        }
+
+
     }
 
 }
@@ -157,7 +189,7 @@ function ClientRoomJoin({onLobbyJoin}) {
 }
 
 
-function ClientGameRoom({roomNumber}){
+function ClientGameWaitingRoom({roomNumber}){
     const socket = useContext(SocketContext);
     const navigate = useNavigate();
     const playerName = localStorage.getItem("playerName");
@@ -209,5 +241,59 @@ function ClientGameRoom({roomNumber}){
     </>);
 }
 
+function ClientGameRoom({}){
+    const socket = useContext(SocketContext);
+    const [answerSubmitted, setAnswerSubmitted] = useState(false);
+    const [answerOptions, setAnswerOptions] = useState([]);
+
+    //restore any variables that were stored locally
+    useEffect(() => {
+
+        let localAnswerSubmitted = localStorage.get("answerSubmitted");
+        if (localAnswerSubmitted) {
+                if (localAnswerSubmitted == "true"){
+                    //we check if the string matches and the set the type of answerSubmitted to a boolean rather than a string
+                    setAnswerSubmitted(true);
+                }
+            }
+            
+        
+
+
+    })
+
+    //establish any listeners for socket signals
+    useEffect(() => {
+        const handleReceiveQuestion = (response) => {
+            console.log(`sentence: ${response.sentence}, keywords: ${response.keywords}`);
+            setAnswerOptions(response.keywords);
+            setAnswerSubmitted(false);
+        }
+
+        socket.on("receive_question", handleReceiveQuestion);
+    })
+
+    const questions = ["asdf", "adf"];
+
+    const handleKeywordSelected = (keyword) => {
+        //socket.emit()
+    }
+
+    if (!answerSubmitted)
+        if (answerOptions.length != 0){
+            return (<>
+                {answerOptions.keywords.map((keyword, index) => (
+                    <button key={index} onClick={() => handleKeywordSelected(keyword)}>{keyword}</button>
+                ))}
+            </>)
+        } else {
+            //if the answer options are 0 we have arrived at a question without options for it and an error should be shown
+            return (<>
+                <h1>It seems we have a question but no options for the question. Please wait, or reload the page.</h1>
+            </>)
+        }
+
+
+}
 
 export default ClientLobby;

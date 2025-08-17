@@ -21,7 +21,7 @@ export const SocketContextProvider = ({ children }) => {
         localStorage.setItem("userId", userId);
     }
 
-    const socket = io.connect("http://localhost:3001", {
+    const socket = io.connect("http://192.168.1.168:3001", {
         query: { userId },
     });
 

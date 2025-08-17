@@ -12,9 +12,13 @@ app.use(cors());
 const server = http.createServer(app);
 const maxRoomSize = 20;
 
+/**the origin field in cors determines what urls this server will listen on. It's currently hard coded
+* to my computer but this number will need to be adjusted if it runs on another 
+* machine
+**/
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5173",
+        origin: "*",
         methods: ["GET", "POST"]
     },
 });
@@ -230,6 +234,11 @@ io.on("connection", (socket) => {
             callback(newResponse);
         }
     });
+
+    socket.on("start_game", (roomNumber) => {
+
+        socket.to(roomNumber).emit("recieve_game_start");
+    })
 
     socket.on("add_url", async (roomNumber, url, callback) => {
         if (!rooms[roomNumber]) {

@@ -1,0 +1,4 @@
+- Edit the question selection so it will not select duplicates
+- Adjust points so more points are given the faster a player answers
+- Put all players on a timer when answering questions
+- dynamically retrieve the host computer's IP so that if another computer were to clone this it would run there as well (index.js) and (SocketContext.jsx)

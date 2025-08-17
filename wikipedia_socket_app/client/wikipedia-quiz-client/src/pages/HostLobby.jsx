@@ -35,20 +35,30 @@ function HostLobby() {
         }
     } ,[]);
 
+    useEffect(() => {
+        const handleRecieveGameStart = () => {
+            setIsWaiting(false);
+            localStorage.setItem("isWaiting", "false");
+
+            socket.emit("get_question", roomNumber, (response) => {
+                if (response.status === "failure") {
+                    console.log("unable to get question");
+                } else {
+                    console.log("starting game");    
+                }
+            });
+        } 
+
+        socket.on("recieve_game_start", )
+    })
+
     const onTimerFinish = () => {
         setRoomSetup(true);
     }
 
+    //we split the end waiting and start game so that all connected pages will transition at the same time
     const handleEndWaitingRoom = () => {
-        setIsWaiting(false);
-        localStorage.setItem("isWaiting", "false");
-        socket.emit("get_question", roomNumber, (response) => {
-            if (response.status === "failure") {
-                console.log("unable to get question");
-            } else {
-                console.log("starting game");    
-            }
-        });
+        socket.emit("start_game", roomNumber);
     }
 
     if (isWaiting) {
